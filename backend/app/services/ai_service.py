@@ -44,11 +44,9 @@ class ClaudeClient:
                 resp = self._client.messages.create(
                     model=self._model,
                     max_tokens=16000,
-                    temperature=0.2,
                     system=system,
                     messages=[{"role": "user", "content": user}],
                     tools=[tool],
-                    tool_choice={"type": "tool", "name": "submit_result"},
                 )
                 block = next((b for b in resp.content if b.type == "tool_use"), None)
                 if block is None:
@@ -56,7 +54,7 @@ class ClaudeClient:
                 return schema.model_validate(block.input)
             except anthropic.AuthenticationError as exc:
                 raise AIUnavailable("Anthropic authentication failed. Check ANTHROPIC_API_KEY.") from exc
-            except (anthropic.RateLimitError, anthropic.APITimeoutError, anthropic.APIConnectionError, anthropic.InternalServerError, ValueError, ValidationError) as exc:
+            except (anthropic.RateLimitError, anthropic.APITimeoutError, anthropic.APIConnectionError, anthropic.InternalServerError, ValueError, ValidationError, TypeError) as exc:
                 last = exc
                 log.warning("AI call failed (attempt %s/%s): %s", attempt, self._retries, type(exc).__name__)
                 if attempt < self._retries:

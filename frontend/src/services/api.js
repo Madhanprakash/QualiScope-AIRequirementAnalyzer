@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
+export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 export const KEY_STORAGE = "qs_api_key";
 
 export const http = axios.create({ baseURL: API_URL, timeout: 300000 });

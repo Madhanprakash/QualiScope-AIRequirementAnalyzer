@@ -241,3 +241,15 @@ td{font-size:11px}
 .page-heading{gap:16px;flex-wrap:wrap}
 @media(max-width:1100px){.form-grid.wide,.an-grid{grid-template-columns:repeat(2,1fr)}.export-grid{grid-template-columns:repeat(2,1fr)}.chart-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.form-grid,.form-grid.wide,.form-grid.two,.an-grid,.export-grid{grid-template-columns:1fr}.stats-grid.eight{grid-template-columns:repeat(2,1fr)}.table-wrap table{min-width:720px}.nav-item span{display:none}}
+
+/* ---- Template Upload Grid ---- */
+.tmpl-modal{background:#111d2a;border:1px solid #2a3b4d;border-radius:12px;padding:24px;width:min(1120px,96vw);max-height:90vh;display:flex;flex-direction:column;gap:16px}
+.tmpl-modal-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.tmpl-modal-header h3{font:700 16px Manrope,sans-serif;color:#edf2f7;margin:4px 0 6px}
+.tmpl-table-wrap{overflow:auto;flex:1;min-height:0;border:1px solid #253446;border-radius:8px}
+.tmpl-table-wrap table{min-width:860px}
+.tmpl-table-wrap th{background:#0d1724;position:sticky;top:0;z-index:1}
+.tmpl-row-selected{background:#1a3250!important}
+.tmpl-row-selected td{color:#e9eef6}
+.tmpl-desc-preview{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:10px;color:#8fa0b2;max-width:200px;line-height:1.4}
+.tmpl-modal-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #253446;padding-top:14px}
