@@ -1,0 +1,79 @@
+/* Workspace settings page */
+
+/*
+ * Sections stack until the content area fits a 240px label column, a 40px gap
+ * and about 400px of controls inside the card padding: 728px, the content width
+ * at a 768px viewport. Measuring the content area (not the viewport) keeps the
+ * controls roomy whether the sidebar is expanded, collapsed or a drawer.
+ */
+.settings__sections {
+  container: settings-sections / inline-size;
+}
+
+.settings__section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5) var(--space-10);
+}
+
+.settings__section > .card__header {
+  margin-bottom: 0;
+}
+
+@container settings-sections (min-width: 728px) {
+  .settings__section {
+    grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  }
+}
+
+/* Keep header names such as X-API-Key on one line. */
+.settings__section .card__desc code {
+  white-space: nowrap;
+}
+
+/* Theme cards go 5, 3 or 2 per row by the space available, never 4 + 1. */
+.settings__themes {
+  container: settings-themes / inline-size;
+}
+
+.settings__themes .theme-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container settings-themes (min-width: 380px) {
+  .settings__themes .theme-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container settings-themes (min-width: 680px) {
+  .settings__themes .theme-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.settings__dl {
+  align-items: baseline;
+}
+
+.settings__note {
+  margin-top: var(--space-1);
+}
+
+/*
+ * Sits on the text line so it lines up with its label while loading. Two
+ * classes so it wins over the kit's .skeleton, which loads after page styles.
+ */
+.settings__dl .settings__skeleton {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.settings__role {
+  text-transform: capitalize;
+}
+
+.settings__key {
+  max-width: 440px;
+}

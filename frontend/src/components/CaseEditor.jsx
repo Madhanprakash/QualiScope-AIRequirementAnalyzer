@@ -1,11 +1,21 @@
 import React, { useState } from "react";
+import { Check } from "lucide-react";
 import { PRIORITIES, STATUSES, CATEGORIES } from "../utils/constants";
+import { Alert, Button, Field, Input, Modal, Select, Textarea, cx } from "./ui";
 
 const blank = { scenario: "", category: "functional", test_type: "", priority: "Medium", module: "", preconditions: "", steps: [], test_data: "", expected_result: "", remarks: "", covers: [] };
 
-export default function CaseEditor({ initial, isNew, onSave, onCancel }) {
+/**
+ * Add / edit dialog for one test case. `initial` is null for a new manual case.
+ * `saving` shows progress on the submit button while the parent saves.
+ */
+export default function CaseEditor({ initial, isNew, onSave, onCancel, saving = false }) {
   const [f, setF] = useState(initial ? { ...initial } : blank);
   const [err, setErr] = useState("");
+  // What the user typed in the two list fields, so Enter and "," are not swallowed;
+  // f.steps and f.covers keep the parsed lists that are validated and saved.
+  const [stepsText, setStepsText] = useState(() => f.steps.join("\n"));
+  const [coversText, setCoversText] = useState(() => f.covers.join(", "));
   const set = (k, v) => setF(s => ({ ...s, [k]: v }));
 
   function submit(e) {
@@ -16,26 +26,85 @@ export default function CaseEditor({ initial, isNew, onSave, onCancel }) {
     onSave(f);
   }
 
-  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={isNew ? "Add test case" : "Edit test case"}>
-    <form className="modal" onSubmit={submit}>
-      <h3>{isNew ? "Add manual test case" : `Edit ${f.id}`}</h3>
-      {err && <div className="error-banner" role="alert">{err}</div>}
-      <div className="form-grid">
-        {isNew && <label>Category<select value={f.category} onChange={e => set("category", e.target.value)}>{CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>}
-        <label>Priority<select value={f.priority} onChange={e => set("priority", e.target.value)}>{PRIORITIES.map(p => <option key={p}>{p}</option>)}</select></label>
-        <label>Module<input value={f.module} onChange={e => set("module", e.target.value)} /></label>
-        <label>Test type<input value={f.test_type} onChange={e => set("test_type", e.target.value)} /></label>
+  return (
+    <Modal
+      as="form"
+      onSubmit={submit}
+      size="lg"
+      title={isNew ? "Add manual test case" : `Edit ${f.id}`}
+      description={`${isNew ? "Manual" : "Edited"} cases are kept when a category is regenerated. Scenario, test steps and expected result are required.`}
+      onClose={onCancel}
+      closeOnBackdrop={false}
+      footer={
+        <>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button type="submit" variant="primary" icon={Check} loading={saving}>Save</Button>
+        </>
+      }
+    >
+      <div className="stack">
+        {err && <Alert tone="danger" role="alert">{err}</Alert>}
+
+        <div className={cx("form-grid", isNew ? "form-grid--2" : "form-grid--3")}>
+          {isNew && (
+            <Field label="Category">
+              <Select value={f.category} onChange={e => set("category", e.target.value)}>
+                {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </Select>
+            </Field>
+          )}
+          <Field label="Priority">
+            <Select value={f.priority} onChange={e => set("priority", e.target.value)}>
+              {PRIORITIES.map(p => <option key={p}>{p}</option>)}
+            </Select>
+          </Field>
+          <Field label="Module">
+            <Input value={f.module} onChange={e => set("module", e.target.value)} />
+          </Field>
+          <Field label="Test type">
+            <Input value={f.test_type} onChange={e => set("test_type", e.target.value)} />
+          </Field>
+        </div>
+
+        <Field label="Scenario">
+          <Textarea rows={2} data-autofocus aria-required="true" value={f.scenario} onChange={e => set("scenario", e.target.value)} />
+        </Field>
+        <Field label="Preconditions">
+          <Textarea rows={2} value={f.preconditions} onChange={e => set("preconditions", e.target.value)} />
+        </Field>
+        <Field label="Test steps" hint="One step per line">
+          <Textarea
+            rows={5}
+            aria-required="true"
+            value={stepsText}
+            onChange={e => { setStepsText(e.target.value); set("steps", e.target.value.split("\n").filter(s => s.trim())); }}
+          />
+        </Field>
+
+        <div className="form-grid form-grid--2">
+          <Field label="Test data">
+            <Textarea rows={3} value={f.test_data} onChange={e => set("test_data", e.target.value)} />
+          </Field>
+          <Field label="Expected result">
+            <Textarea rows={3} aria-required="true" value={f.expected_result} onChange={e => set("expected_result", e.target.value)} />
+          </Field>
+        </div>
+
+        <div className="form-grid form-grid--2">
+          <Field label="Covers" hint="Requirement item IDs, comma separated">
+            <Input
+              value={coversText}
+              placeholder="FR-001, AC-002"
+              onChange={e => { setCoversText(e.target.value); set("covers", e.target.value.split(",").map(s => s.trim()).filter(Boolean)); }}
+            />
+          </Field>
+          <Field label="Remarks">
+            <Input value={f.remarks} onChange={e => set("remarks", e.target.value)} />
+          </Field>
+        </div>
       </div>
-      <label>Scenario<textarea aria-label="Scenario" rows={2} value={f.scenario} onChange={e => set("scenario", e.target.value)} /></label>
-      <label>Preconditions<textarea rows={2} value={f.preconditions} onChange={e => set("preconditions", e.target.value)} /></label>
-      <label>Test steps (one per line)<textarea aria-label="Test steps" rows={4} value={f.steps.join("\n")} onChange={e => set("steps", e.target.value.split("\n").filter(s => s.trim()))} /></label>
-      <label>Test data<textarea rows={2} value={f.test_data} onChange={e => set("test_data", e.target.value)} /></label>
-      <label>Expected result<textarea aria-label="Expected result" rows={2} value={f.expected_result} onChange={e => set("expected_result", e.target.value)} /></label>
-      <label>Covers (requirement item IDs, comma separated)<input value={f.covers.join(", ")} onChange={e => set("covers", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} /></label>
-      <label>Remarks<input value={f.remarks} onChange={e => set("remarks", e.target.value)} /></label>
-      <div className="modal-actions"><button type="button" className="secondary-button" onClick={onCancel}>Cancel</button><button type="submit" className="primary-button">Save</button></div>
-    </form>
-  </div>;
+    </Modal>
+  );
 }
 
 export { STATUSES };

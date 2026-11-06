@@ -1,0 +1,241 @@
+/* Dashboard page */
+
+/* ---------- Analytics row: coverage chart + risk donut ---------- */
+.dashboard__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6) var(--space-4);
+}
+
+/* Cards in the analytics row share the row height; their body fills the space under the header. */
+.dashboard__panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* An empty chart card is stretched to its neighbour's height: keep the message centred. */
+.dashboard__panel > .empty {
+  flex: 1;
+  justify-content: center;
+}
+
+.dashboard__bars {
+  height: 240px;
+  font-size: var(--text-2xs); /* inherited by the chart's axis labels */
+}
+
+/* ---------- Lists that carry each chart's exact values ---------- */
+.dashboard__list {
+  padding: 0;
+  list-style: none;
+}
+
+.dashboard__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  min-width: 0;
+  padding: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+.dashboard__categories {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-6);
+  margin-top: var(--space-4);
+}
+
+.dashboard__categories > .dashboard__row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.dashboard__legend > .dashboard__row + .dashboard__row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.dashboard__category-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+}
+
+.dashboard__num {
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard__share {
+  min-width: 4ch;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------- Risk distribution ---------- */
+.dashboard__risk {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-5);
+}
+
+.dashboard__donut {
+  position: relative;
+  height: 188px;
+}
+
+.dashboard__donut-total {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dashboard__donut-value {
+  color: var(--text);
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tighter);
+  line-height: 1;
+}
+
+.dashboard__donut-label {
+  margin-top: var(--space-1);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+/* ---------- Execution status ---------- */
+.dashboard__summary {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.dashboard__segment {
+  min-width: 4px;
+  background: var(--chart-8);
+}
+
+.dashboard__segment--pass { background: var(--success); }
+.dashboard__segment--fail { background: var(--danger); }
+.dashboard__segment--blocked { background: var(--warning); }
+.dashboard__segment--notrun { background: var(--text-disabled); }
+
+.dashboard__statuses {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.dashboard__status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.dashboard__status-count {
+  color: var(--text);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+}
+
+/* ---------- Chart tooltip ---------- */
+.dashboard__tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  white-space: nowrap;
+}
+
+.dashboard__tooltip-value {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.dashboard__tooltip-label {
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+/* ---------- Loading placeholder ---------- */
+.dashboard__skeleton-donut {
+  align-self: center;
+}
+
+/* ---------- Responsive ---------- */
+/* Below 1200px the docked sidebar leaves too little room for two charts side by side. */
+@media (max-width: 1199px) {
+  .dashboard__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Full-width risk card: donut on the left, legend beside it. */
+  .dashboard__risk {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-10);
+  }
+
+  .dashboard__donut {
+    width: 188px;
+    flex-shrink: 0;
+  }
+
+  .dashboard__legend {
+    flex: 1;
+    max-width: 420px;
+  }
+}
+
+@media (max-width: 639px) {
+  .dashboard__bars {
+    height: 200px;
+  }
+
+  .dashboard__categories {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard__risk {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-5);
+  }
+
+  .dashboard__donut {
+    width: auto;
+  }
+
+  .dashboard__legend {
+    flex: none;
+    max-width: none;
+  }
+
+  .dashboard__statuses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

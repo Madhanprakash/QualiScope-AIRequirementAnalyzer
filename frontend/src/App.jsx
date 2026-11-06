@@ -1,5 +1,6 @@
 import React from "react";
 import { AppProvider } from "./hooks/useApp";
+import { ThemeProvider } from "./hooks/useTheme";
 import { useHashRoute } from "./hooks/useHashRoute";
 import AppLayout from "./layouts/AppLayout";
 import DashboardPage from "./pages/DashboardPage";
@@ -19,5 +20,11 @@ const PAGES = {
 export default function App() {
   const [route, go] = useHashRoute();
   const Page = PAGES[route];
-  return <AppProvider><AppLayout route={route} go={go}><Page go={go} /></AppLayout></AppProvider>;
+  return (
+    <ThemeProvider>
+      <AppProvider>
+        <AppLayout route={route} go={go}><Page go={go} /></AppLayout>
+      </AppProvider>
+    </ThemeProvider>
+  );
 }

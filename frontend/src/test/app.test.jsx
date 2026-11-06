@@ -24,6 +24,7 @@ const PACK = {
 };
 
 function renderWithPack(ui, pack = PACK) {
+  vi.spyOn(api, "listProjects").mockResolvedValue([{ id: "proj1", name: "iGreen", code: "IG", description: "", pack_count: 0, created_at: "", updated_at: "" }]);
   vi.spyOn(api, "listPacks").mockResolvedValue([]);
   vi.spyOn(api, "getPack").mockResolvedValue(pack);
   localStorage.setItem("qs_pack_id", pack.id);
@@ -51,7 +52,7 @@ describe("form validation", () => {
     vi.spyOn(api, "generate").mockReturnValue(new Promise(r => { resolve = r; }));
     const go = vi.fn();
     renderWithPack(<AnalyzerPage go={go} />);
-    await userEvent.type(screen.getByLabelText(/requirement description/i), "As an Admin I want to edit the delivery date");
+    await userEvent.type(screen.getByLabelText(/item desc/i), "As an Admin I want to edit the delivery date");
     await userEvent.click(screen.getByRole("button", { name: /generate ai test pack/i }));
     expect(await screen.findByRole("status")).toHaveTextContent(/generating/i);
     resolve(PACK);
@@ -62,17 +63,16 @@ describe("form validation", () => {
   it("shows backend errors from analyze", async () => {
     vi.spyOn(api, "analyze").mockRejectedValue({ response: { status: 503, data: { detail: "ANTHROPIC_API_KEY is not configured on the server." } } });
     renderWithPack(<AnalyzerPage go={() => {}} />);
-    await userEvent.type(screen.getByLabelText(/requirement description/i), "As an Admin I want to edit the delivery date");
+    await userEvent.type(screen.getByLabelText(/item desc/i), "As an Admin I want to edit the delivery date");
     await userEvent.click(screen.getByRole("button", { name: /analyze requirement/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/ANTHROPIC_API_KEY/);
   });
 
-  it("clear button empties the form", async () => {
+  it("offers only Excel template download and upload", () => {
     renderWithPack(<AnalyzerPage go={() => {}} />);
-    await userEvent.click(screen.getByRole("button", { name: /load sample/i }));
-    expect(screen.getByLabelText(/requirement description/i).value).toMatch(/Admin/);
-    await userEvent.click(screen.getByRole("button", { name: /clear/i }));
-    expect(screen.getByLabelText(/requirement description/i).value).toBe("");
+    expect(screen.getByRole("button", { name: /download excel template/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /upload excel/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /load sample|paste|upload document|clear/i })).toBeNull();
   });
 });
 

@@ -4,8 +4,15 @@ import fs from "node:fs";
 test("requirement -> AI test pack -> edit -> traceability -> exports", async ({ page }) => {
   await page.goto("/#/analyzer");
 
+  // First run: the app asks for a project before anything else
+  await page.getByLabel("Project name").fill("E2E Project");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
   // Requirement submission
-  await page.getByRole("button", { name: "Load sample" }).click();
+  await page.getByLabel("ITEM TITLE").fill("User Login and Role-Based Page Access");
+  await page.getByLabel("ITEM DESC").fill("As a user, I want to log in securely so that I can access only the pages allowed for my role.");
+  await page.getByLabel("ACCEPTANCE CRITERIA").fill("Valid username and password required.\nEvery login attempt is logged.");
   await page.getByRole("button", { name: "Analyze Requirement" }).click();
   await expect(page.getByRole("region", { name: "Requirement analysis" })).toContainText("BR-001");
   await page.getByRole("button", { name: /Generate AI Test Pack/ }).click();
@@ -33,17 +40,17 @@ test("requirement -> AI test pack -> edit -> traceability -> exports", async ({ 
   await expect(page.getByTestId("row-TC-NEG-001")).toContainText("EDITED");
 
   // Traceability
-  await page.getByRole("button", { name: "Traceability Matrix" }).click();
+  await page.getByRole("link", { name: "Traceability Matrix" }).click();
   await expect(page.getByText("Not covered")).toBeVisible();
   await expect(page.getByText("BR-002").first()).toBeVisible();
 
   // Execution then validated coverage
-  await page.getByRole("button", { name: "Test Execution" }).click();
+  await page.getByRole("link", { name: "Test Execution" }).click();
   await page.getByLabel("Status TC-NEG-001").selectOption("Pass");
   await expect(page.getByLabel("Status TC-NEG-001")).toHaveValue("Pass");
 
   // Exports
-  await page.getByRole("button", { name: "Reports & Export" }).click();
+  await page.getByRole("link", { name: "Reports & Export" }).click();
   for (const [fmt, ext] of [["XLSX", "xlsx"], ["CSV", "csv"]]) {
     const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: `Export ${fmt}` }).click()]);
     expect(dl.suggestedFilename()).toMatch(new RegExp(`\.${ext}$`));

@@ -22,7 +22,7 @@ def audit(db: Session, pack_id: str, user: str, action: str, detail: str = "") -
 def summary_of(row: PackRow) -> PackSummary:
     d = row.data
     return PackSummary(
-        id=row.id, requirement_id=row.requirement_id, title=row.title, status=row.status, version=row.version,
+        id=row.id, project_id=row.project_id or "", requirement_id=row.requirement_id, title=row.title, status=row.status, version=row.version,
         test_case_count=len(d.get("test_cases", [])), risk_count=len(d.get("risks", [])), question_count=len(d.get("questions", [])),
         created_at=row.created_at.isoformat(), updated_at=row.updated_at.isoformat(),
     )
@@ -57,21 +57,22 @@ def _guard_mutable(row: PackRow) -> None:
 
 def generate_pack(
     db: Session, llm: LLMClient, req: RequirementInput, analysis: RequirementAnalysis | None,
-    categories: list[Category] | None, user: str,
+    categories: list[Category] | None, user: str, project_id: str,
 ) -> PackRow:
     analysis = analysis or requirement_analyzer.analyze_requirement(llm, req)
     cats = categories or list(Category)
     cases = test_generator.generate_all(llm, req, analysis, cats, [])
     risks = risk_analyzer.assess_risks(llm, req, analysis)
     warnings = []
-    if injection_suspected(req.description, req.additional_context, req.acceptance_criteria, req.business_objective):
+    if injection_suspected(req.description, req.acceptance_criteria, req.business_validation, req.boundary_validation,
+                           req.integration_points, req.api_spec, req.data_flow_diagram):
         warnings.append("Input contains text resembling prompt-injection instructions; it was treated as data only. Review the output carefully.")
     empty = [c.value for c in cats if not any(t.category == c for t in cases)]
     if empty:
         warnings.append("No cases were produced for: " + ", ".join(empty))
     data = PackData(requirement=req, analysis=analysis, test_cases=cases, risks=risks,
                     questions=risk_analyzer.questions_from_analysis(analysis), warnings=warnings)
-    row = PackRow(id=str(uuid.uuid4()), requirement_id=req.requirement_id, title=req.title or req.description[:80],
+    row = PackRow(id=str(uuid.uuid4()), project_id=project_id, requirement_id=req.requirement_id, title=req.title or req.description[:80],
                   status="draft", version=1, data=data.model_dump(mode="json"))
     db.add(row)
     audit(db, row.id, user, "generate", f"{len(cases)} cases, {len(risks)} risks")
@@ -175,8 +176,11 @@ def compare_versions(db: Session, row: PackRow, a: int, b: int) -> dict:
             "changed": [{"id": i, "fields": [k for k in cb[i] if ca[i].get(k) != cb[i][k]]} for i in sorted(changed)]}
 
 
-def dashboard(db: Session) -> dict:
-    rows = db.execute(select(PackRow)).scalars().all()
+def dashboard(db: Session, project_id: str | None = None) -> dict:
+    q = select(PackRow)
+    if project_id:
+        q = q.where(PackRow.project_id == project_id)
+    rows = db.execute(q).scalars().all()
     by_cat = {c.value: 0 for c in Category}
     risks = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
     statuses = {s: 0 for s in STATUSES}

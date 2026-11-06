@@ -1,0 +1,102 @@
+/* Traceability matrix page */
+
+/* ----- Matrix ----- */
+/* Wide enough for three ID tags per line at 1280px. */
+.traceability__cases {
+  min-width: 18rem;
+}
+
+.traceability__ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.traceability__id {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.traceability__coverage {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.traceability__meter {
+  display: inline-flex;
+  gap: var(--space-0-5);
+}
+
+.traceability__meter > span {
+  width: 10px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--border-strong);
+}
+
+.traceability__coverage--mapped .traceability__meter > span:first-child {
+  background: var(--info);
+}
+
+.traceability__coverage--full .traceability__meter > span {
+  background: var(--success);
+}
+
+/* ----- Coverage gaps: label, count and ids per row ----- */
+.traceability__gap {
+  display: grid;
+  grid-template-columns: minmax(0, 18rem) 2.5rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.traceability__gap:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.traceability__gap:last-child {
+  padding-bottom: 0;
+}
+
+.traceability__gap > dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.traceability__gap-label {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.traceability__gap-ids {
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 639px) {
+  .traceability__gap {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .traceability__gap-ids {
+    grid-column: 1 / -1;
+  }
+}

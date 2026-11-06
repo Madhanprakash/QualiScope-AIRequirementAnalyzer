@@ -1,0 +1,63 @@
+/* Reports and export page */
+
+.reports__formats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.reports__format {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+/* Icon and file type share the first row with the title below; one row from 1199px down. */
+.reports__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-3);
+}
+
+.reports__head > .card__header {
+  order: 1;
+  flex-basis: 100%;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.reports__icon {
+  display: grid;
+  place-items: center;
+  width: var(--space-10);
+  height: var(--space-10);
+  border-radius: var(--radius-md);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+}
+
+@media (max-width: 1199px) {
+  .reports__formats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reports__head {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .reports__head > .card__header {
+    order: 0;
+    flex: 1;
+  }
+}
+
+@media (max-width: 639px) {
+  .reports__formats {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+}

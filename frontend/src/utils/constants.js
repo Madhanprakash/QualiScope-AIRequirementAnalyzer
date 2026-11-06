@@ -11,14 +11,13 @@ export const CATEGORIES = [
   { id: "regression", label: "Regression", icon: RefreshCw }
 ];
 
-export const SOURCE_TYPES = ["Requirement", "User Story", "Change Request", "Functional Requirement", "Acceptance Criteria"];
+export const SOURCE_TYPES = ["Epic", "Feature", "Story", "Task"];
 export const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 export const STATUSES = ["Not Run", "Pass", "Fail", "Blocked"];
 export const PRIORITY_LEVELS = ["", "Critical", "High", "Medium", "Low"];
 
 export const EMPTY_REQ = {
-  source_type: "User Story", requirement_id: "", title: "", description: "", business_objective: "",
-  acceptance_criteria: "", impacted_module: "", business_priority: "", additional_context: ""
+  source_type: "Story", requirement_id: "", title: "", description: "", parent: "", data_flow_diagram: "",
+  acceptance_criteria: "", business_validation: "", boundary_validation: "", integration_points: "", api_spec: ""
 };
 
-export const SEVERITY_COLORS = { Critical: "#ff7777", High: "#e78b81", Medium: "#e6b45f", Low: "#72c69b" };

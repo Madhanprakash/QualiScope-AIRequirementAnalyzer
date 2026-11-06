@@ -1,172 +1,149 @@
 import React, { useRef, useState } from "react";
-import { ArrowRight, Check, ClipboardPaste, Download, Sparkles, Upload, X } from "lucide-react";
-import { api, errorMessage } from "../services/api";
+import {
+  ArrowRight, Boxes, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardCheck, Download, FileText, Hash,
+  Layers, ListChecks, Network, Plug, RefreshCw, Scale, ShieldCheck, Sparkles, TriangleAlert, Upload, Users, Workflow
+} from "lucide-react";
+import { api, errorMessage, saveBlob } from "../services/api";
 import { useApp } from "../hooks/useApp";
 import { EMPTY_REQ, SOURCE_TYPES } from "../utils/constants";
-import { ErrorBanner, PageHeading, Spinner } from "../components/common";
-
-export const SAMPLE = {
-  source_type: "User Story", requirement_id: "US-101", title: "Admin modifies delivery completion date",
-  description: "As an Admin, I want to modify the delivery completion date so that delivery records remain accurate when schedules change.",
-  business_objective: "Keep delivery and billing records accurate when schedules change.",
-  acceptance_criteria: "Admin can edit the completion date from the delivery record.\nThe updated date is saved and visible after refresh.",
-  impacted_module: "Delivery Management", business_priority: "High", additional_context: ""
-};
+import {
+  Alert, Badge, Button, Card, CardFooter, CardHeader, CardSection, Checkbox, Field, Input, Modal, PageHeader,
+  Select, Skeleton, Spinner, Table, Textarea, cx
+} from "../components/ui";
+import "./AnalyzerPage.css";
 
 export function validateRequirement(r) {
   const body = [r.title, r.description, r.acceptance_criteria].join(" ").trim();
   return body.length < 10 ? "Provide a title, description or acceptance criteria (at least 10 characters)." : "";
 }
 
-const TEMPLATE_COLS = [
-  "source_type", "requirement_id", "title", "description",
-  "business_objective", "acceptance_criteria", "impacted_module",
-  "business_priority", "additional_context"
-];
-
+// Labels mirror the Excel template / iGreen backlog columns.
 const COL_LABELS = {
-  source_type: "Source Type", requirement_id: "Requirement ID", title: "Title",
-  description: "Description", business_objective: "Business Objective",
-  acceptance_criteria: "Acceptance Criteria", impacted_module: "Impacted Module",
-  business_priority: "Business Priority", additional_context: "Additional Context"
+  source_type: "Item Type", requirement_id: "Requirement ID", title: "Item Title",
+  description: "Item Desc", parent: "Parent", data_flow_diagram: "Data Flow Diagram",
+  acceptance_criteria: "Acceptance Criteria", business_validation: "Business Validation",
+  boundary_validation: "Boundary Validation", integration_points: "Integration Points",
+  api_spec: "API Spec"
 };
 
-const GRID_COLS = ["source_type", "requirement_id", "title", "impacted_module", "business_priority"];
+const GRID_COLS = ["source_type", "requirement_id", "title", "description", "parent", "data_flow_diagram", "acceptance_criteria", "business_validation", "boundary_validation", "integration_points", "api_spec"];
+const LONG_COLS = new Set(["description", "data_flow_diagram", "acceptance_criteria", "business_validation", "boundary_validation", "integration_points", "api_spec"]);
+// Minimum column width in the review grid; long-text columns get the widest.
+const COL_SIZE = { source_type: "sm", requirement_id: "sm", title: "md", parent: "md" };
 
-function csvEscape(val) {
-  const s = String(val || "");
-  return (s.includes(",") || s.includes("\n") || s.includes('"')) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+const ANALYZING = "Analyzing requirement...";
+const GENERATING = "Generating AI Test Pack (this can take a minute)...";
 
-function downloadTemplate() {
-  const header = TEMPLATE_COLS.join(",");
-  const row = TEMPLATE_COLS.map(c => csvEscape(SAMPLE[c] || "")).join(",");
-  const blob = new Blob([`${header}\n${row}\n`], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a"); a.href = url; a.download = "requirement_template.csv"; a.click();
-  URL.revokeObjectURL(url);
-}
-
-function parseCSVRow(line) {
-  const result = []; let cur = ""; let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
-    else if (c === ',' && !inQ) { result.push(cur); cur = ""; }
-    else cur += c;
-  }
-  result.push(cur);
-  return result;
-}
-
-function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return [];
-  const headers = parseCSVRow(lines[0]);
-  return lines.slice(1).map(line => {
-    const vals = parseCSVRow(line);
-    const row = { ...EMPTY_REQ };
-    headers.forEach((h, i) => { const k = h.trim(); if (k in row) row[k] = vals[i] || ""; });
-    return row;
-  });
-}
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function TemplateGrid({ rows, onApprove, onClose }) {
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
   const [editRows, setEditRows] = useState(rows);
+  const allSelected = editRows.length > 0 && selected.size === editRows.length;
+  const toggle = ri => setSelected(s => { const n = new Set(s); n.has(ri) ? n.delete(ri) : n.add(ri); return n; });
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(editRows.keys()));
 
   const setCell = (ri, col, val) =>
     setEditRows(r => r.map((row, i) => i === ri ? { ...row, [col]: val } : row));
 
   return (
-    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="tmpl-modal">
-        <div className="tmpl-modal-header">
-          <div>
-            <div className="section-kicker">UPLOADED TEMPLATE</div>
-            <h3>{editRows.length} requirement{editRows.length !== 1 ? "s" : ""} ready for review</h3>
-            <p className="muted">Select a row to approve and load it into the analyzer.</p>
+    <Modal
+      size="full"
+      onClose={onClose}
+      title={`${plural(editRows.length, "requirement")} ready for review`}
+      description="Tick one or more rows, or select all, to load them into the analyzer. Several rows are stepped through one at a time."
+      bodyClassName="analyzer__review-body"
+      footerAlign="between"
+      footer={
+        <>
+          <span className="text-sm text-secondary">
+            {selected.size ? `${selected.size} of ${plural(editRows.length, "row")} selected` : "No row selected"}
+          </span>
+          <div className="btn-group analyzer__review-actions">
+            <Button onClick={onClose}>Cancel</Button>
+            <Button variant="primary" icon={Check} disabled={!selected.size} onClick={() => onApprove(editRows.filter((_, i) => selected.has(i)))}>
+              Approve &amp; Load{selected.size > 1 ? ` (${selected.size})` : ""}
+            </Button>
           </div>
-          <button className="text-button" onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="tmpl-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ width: 32 }} />
-                {GRID_COLS.map(c => <th key={c}>{COL_LABELS[c].toUpperCase()}</th>)}
-                <th>DESCRIPTION PREVIEW</th>
+        </>
+      }
+    >
+      <Table label="Uploaded requirements" compact wrapClassName="analyzer__review-table">
+        <thead>
+          <tr>
+            <th className="cell-tight analyzer__pick">
+              <Checkbox aria-label="Select all rows" checked={allSelected} indeterminate={selected.size > 0 && !allSelected} onChange={toggleAll} />
+            </th>
+            {GRID_COLS.map(c => <th key={c} className={`analyzer__col--${COL_SIZE[c] || "lg"}`}>{COL_LABELS[c]}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {editRows.map((row, ri) => {
+            const cellLabel = c => `${COL_LABELS[c]} row ${ri + 1}`;
+            return (
+              <tr key={ri} className={selected.has(ri) ? "is-selected" : undefined} onClick={() => toggle(ri)}>
+                <td className="cell-tight analyzer__pick" onClick={e => e.stopPropagation()}>
+                  <Checkbox aria-label={`Select row ${ri + 1}`} checked={selected.has(ri)} onChange={() => toggle(ri)} />
+                </td>
+                {GRID_COLS.map(c => (
+                  <td key={c} onClick={e => e.stopPropagation()}>
+                    {c === "source_type"
+                      ? <Select size="sm" aria-label={cellLabel(c)} value={row[c]} onChange={e => setCell(ri, c, e.target.value)}>{SOURCE_TYPES.map(s => <option key={s}>{s}</option>)}</Select>
+                      : LONG_COLS.has(c)
+                        ? <Textarea className="analyzer__cell-text" rows={3} aria-label={cellLabel(c)} value={row[c] || ""} onChange={e => setCell(ri, c, e.target.value)} />
+                        : <Input size="sm" aria-label={cellLabel(c)} value={row[c] || ""} onChange={e => setCell(ri, c, e.target.value)} />}
+                  </td>
+                ))}
               </tr>
-            </thead>
-            <tbody>
-              {editRows.map((row, ri) => (
-                <tr key={ri} className={selected === ri ? "tmpl-row-selected" : ""} onClick={() => setSelected(ri)} style={{ cursor: "pointer" }}>
-                  <td onClick={e => e.stopPropagation()}>
-                    <input type="radio" checked={selected === ri} onChange={() => setSelected(ri)} />
-                  </td>
-                  {GRID_COLS.map(c => (
-                    <td key={c} onClick={e => e.stopPropagation()}>
-                      <input className="cell-input" value={row[c] || ""} onChange={e => setCell(ri, c, e.target.value)} />
-                    </td>
-                  ))}
-                  <td style={{ maxWidth: 220 }}>
-                    <span className="tmpl-desc-preview">{row.description || <span className="muted" style={{ fontStyle: "italic" }}>—</span>}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="tmpl-modal-footer">
-          <span className="muted">{selected !== null ? `Row ${selected + 1} selected` : "No row selected"}</span>
-          <div className="btn-row">
-            <button className="secondary-button" onClick={onClose}><X size={14} /> Cancel</button>
-            <button className="primary-button" disabled={selected === null} onClick={() => selected !== null && onApprove(editRows[selected])}>
-              <Check size={14} /> Approve &amp; Load
-            </button>
-          </div>
+            );
+          })}
+        </tbody>
+      </Table>
+    </Modal>
+  );
+}
+
+/** Titled group of fields inside the requirement card (two columns on wide screens). */
+function FormSection({ id, icon: Icon, title, description, children }) {
+  return (
+    <CardSection className="analyzer__section" role="group" aria-labelledby={`${id}-title`} aria-describedby={`${id}-desc`}>
+      <div className="analyzer__section-head">
+        <span className="analyzer__section-icon" aria-hidden="true"><Icon size={16} /></span>
+        <div className="stack-xs">
+          <h3 id={`${id}-title`} className="analyzer__section-title">{title}</h3>
+          <p id={`${id}-desc`} className="muted text-xs">{description}</p>
         </div>
       </div>
-    </div>
+      <div className="analyzer__fields">{children}</div>
+    </CardSection>
   );
 }
 
 export default function AnalyzerPage({ go }) {
-  const { setPack, notify, refreshPacks } = useApp();
+  const { setPack, notify, refreshPacks, projectId } = useApp();
   const [req, setReq] = useState(EMPTY_REQ);
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
   const [templateRows, setTemplateRows] = useState([]);
   const [showGrid, setShowGrid] = useState(false);
-  const fileRef = useRef();
+  const [queue, setQueue] = useState({ rows: [], index: 0 });
   const tmplRef = useRef();
   const set = (k, v) => { setReq(r => ({ ...r, [k]: v })); setAnalysis(null); };
 
   async function run(label, fn) {
+    if (!projectId) return setError("Create or select a project first (sidebar, Project).");
     const v = validateRequirement(req);
     if (v) return setError(v);
     setError(""); setLoading(label);
     try { await fn(); } catch (e) { setError(errorMessage(e)); } finally { setLoading(""); }
   }
 
-  const analyze = () => run("Analyzing requirement...", async () => { setAnalysis(await api.analyze(req)); });
-  const generate = () => run("Generating AI Test Pack (this can take a minute)...", async () => {
-    const pack = await api.generate(req, analysis || undefined);
+  const analyze = () => run(ANALYZING, async () => { setAnalysis(await api.analyze(req)); });
+  const generate = () => run(GENERATING, async () => {
+    const pack = await api.generate(req, analysis || undefined, projectId);
     setPack(pack); refreshPacks(); notify(`Test pack generated: ${pack.test_case_count} test cases.`); go("testpack");
   });
-
-  async function upload(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setError("");
-    try {
-      const { text } = await api.extract(file);
-      set("description", [req.description, text].filter(Boolean).join("\n\n"));
-      notify(`Loaded ${file.name}`);
-    } catch (err) { setError(errorMessage(err)); }
-  }
 
   async function uploadTemplate(e) {
     const file = e.target.files?.[0];
@@ -174,85 +151,224 @@ export default function AnalyzerPage({ go }) {
     if (!file) return;
     setError("");
     try {
-      const text = await file.text();
-      const rows = parseCSV(text);
-      if (!rows.length) return setError("Template is empty or has no data rows.");
-      setTemplateRows(rows);
+      const { rows } = await api.parseTemplate(file);
+      setTemplateRows(rows.map(r => ({ ...EMPTY_REQ, ...r })));
       setShowGrid(true);
-    } catch (err) { setError("Failed to read template: " + err.message); }
+    } catch (err) { setError(errorMessage(err)); }
   }
 
-  function approveTemplate(row) {
-    setReq(row);
-    setAnalysis(null);
+  function approveTemplate(rows) {
+    setQueue({ rows, index: 0 });
+    setReq(rows[0]);
+    setAnalysis(null); setError("");
     setShowGrid(false);
     setTemplateRows([]);
-    notify("Requirement loaded from template. Ready to analyze.");
+    notify(rows.length > 1 ? `${rows.length} requirements loaded. Showing 1 of ${rows.length}.` : "Requirement loaded from template. Ready to analyze.");
   }
 
-  async function paste() {
-    try { set("description", (req.description ? req.description + "\n" : "") + await navigator.clipboard.readText()); }
-    catch { setError("Clipboard access was denied. Paste with Ctrl+V into the description box."); }
+  function step(delta) {
+    const index = queue.index + delta;
+    if (index < 0 || index >= queue.rows.length) return;
+    // keep edits made to the current item
+    const rows = queue.rows.map((r, i) => i === queue.index ? req : r);
+    setQueue({ rows, index });
+    setReq(rows[index]);
+    setAnalysis(null); setError("");
   }
 
-  const field = ({ id, label, rows, ...p }) => <label key={id} className="fld" htmlFor={id}><span>{label}</span>{rows ? <textarea id={id} rows={rows} value={req[id]} onChange={e => set(id, e.target.value)} {...p} /> : <input id={id} value={req[id]} onChange={e => set(id, e.target.value)} {...p} />}</label>;
+  async function downloadTemplate() {
+    try { const { blob, name } = await api.downloadTemplate(); saveBlob(blob, name); }
+    catch (err) { setError(errorMessage(err)); }
+  }
 
-  return <>
-    {showGrid && <TemplateGrid rows={templateRows} onApprove={approveTemplate} onClose={() => setShowGrid(false)} />}
-    <PageHeading kicker={<><Sparkles size={14} /> AI-ASSISTED QUALITY ENGINEERING</>} title="From requirement to" accent="test coverage." subtitle="Submit a requirement, story or CR. Missing information is raised as open questions, never silently assumed.">
-      <div className="btn-row">
-        <button className="secondary-button" onClick={downloadTemplate}><Download size={14} /> Download Template</button>
-        <button className="secondary-button" onClick={() => { setReq(SAMPLE); setAnalysis(null); }}>Load sample</button>
-      </div>
-    </PageHeading>
-    <section className="panel requirement-panel">
-      <div className="panel-title-row"><div><div className="section-kicker">01 / INPUT</div><h2>Provide the source requirement</h2><p>Partially completed requirements are accepted.</p></div></div>
-      <div className="form-grid wide">
-        <label className="fld" htmlFor="source_type"><span>REQUIREMENT SOURCE TYPE</span><select id="source_type" value={req.source_type} onChange={e => set("source_type", e.target.value)}>{SOURCE_TYPES.map(s => <option key={s}>{s}</option>)}</select></label>
-        {field({ id: "requirement_id", label: "REQUIREMENT ID", placeholder: "e.g. US-101" })}
-        {field({ id: "title", label: "REQUIREMENT TITLE" })}
-        {field({ id: "impacted_module", label: "IMPACTED MODULE" })}
-        <label className="fld" htmlFor="business_priority"><span>BUSINESS PRIORITY</span><select id="business_priority" value={req.business_priority} onChange={e => set("business_priority", e.target.value)}><option value="">Not specified</option>{["Critical", "High", "Medium", "Low"].map(p => <option key={p}>{p}</option>)}</select></label>
-      </div>
-      {field({ id: "description", label: "REQUIREMENT DESCRIPTION", rows: 5, placeholder: "Paste the full requirement, user story or CR details..." })}
-      <div className="form-grid two">{field({ id: "business_objective", label: "BUSINESS OBJECTIVE", rows: 3 })}{field({ id: "acceptance_criteria", label: "ACCEPTANCE CRITERIA", rows: 3 })}</div>
-      {field({ id: "additional_context", label: "ADDITIONAL CONTEXT", rows: 2 })}
-      <ErrorBanner message={error} />
-      <div className="input-footer">
-        <span>{req.description.length} characters in description · PDF, DOCX, TXT up to 5 MB</span>
-        <div className="input-actions">
-          <input ref={fileRef} type="file" accept=".pdf,.docx,.txt" hidden onChange={upload} data-testid="file-input" />
-          <input ref={tmplRef} type="file" accept=".csv" hidden onChange={uploadTemplate} data-testid="template-input" />
-          <button className="text-button" onClick={paste}><ClipboardPaste size={14} /> Paste</button>
-          <button className="text-button" onClick={() => fileRef.current.click()}><Upload size={14} /> Upload document</button>
-          <button className="text-button" onClick={() => tmplRef.current.click()}><Upload size={14} /> Upload Template</button>
-          <button className="text-button" onClick={() => { setReq(EMPTY_REQ); setAnalysis(null); setError(""); }}><X size={14} /> Clear</button>
-          <button className="secondary-button" disabled={!!loading} onClick={analyze}><Sparkles size={15} /> Analyze Requirement</button>
-          <button className="primary-button" disabled={!!loading} onClick={generate}>Generate AI Test Pack <ArrowRight size={15} /></button>
-        </div>
-      </div>
-      {loading && <Spinner label={loading} />}
-    </section>
-    {analysis && <AnalysisView a={analysis} />}
-  </>;
+  const field = ({ id, rows, span, mono, ...p }) => (
+    <Field label={COL_LABELS[id]} className={span ? "span-full" : undefined}>
+      {rows
+        ? <Textarea id={id} rows={rows} className={mono ? "analyzer__mono" : undefined} value={req[id]} onChange={e => set(id, e.target.value)} {...p} />
+        : <Input id={id} value={req[id]} onChange={e => set(id, e.target.value)} {...p} />}
+    </Field>
+  );
+
+  const queueMeta = [req.requirement_id, req.title].filter(Boolean).join(" · ");
+
+  return (
+    <div className="page">
+      <PageHeader
+        eyebrow={<><Sparkles size={14} aria-hidden="true" /> AI-assisted quality engineering</>}
+        title="From requirement to"
+        accent="test coverage"
+        description="Submit a requirement, story or CR. Missing information is raised as open questions, never silently assumed."
+        actions={<Button icon={Download} onClick={downloadTemplate}>Download Excel Template</Button>}
+      />
+
+      {queue.rows.length > 1 && (
+        <Card as="div" padded={false} className="analyzer__queue" role="group" aria-label="Loaded requirements">
+          <span className="analyzer__queue-icon" aria-hidden="true"><Layers size={16} /></span>
+          <div className="grow">
+            <p className="analyzer__queue-title tabular">Requirement {queue.index + 1} of {queue.rows.length}</p>
+            {queueMeta && <p className="muted text-xs truncate">{queueMeta}</p>}
+          </div>
+          <div className="btn-group">
+            <Button size="sm" icon={ChevronLeft} disabled={queue.index === 0} onClick={() => step(-1)}>Previous</Button>
+            <Button size="sm" iconRight={ChevronRight} disabled={queue.index === queue.rows.length - 1} onClick={() => step(1)}>Next</Button>
+          </div>
+          <span className="analyzer__queue-progress" style={{ width: `${((queue.index + 1) / queue.rows.length) * 100}%` }} aria-hidden="true" />
+        </Card>
+      )}
+
+      <Card flush>
+        <CardHeader
+          title="Source requirement"
+          description="Partially completed requirements are accepted. Provide at least a title, description or acceptance criteria."
+        />
+
+        <FormSection id="analyzer-identification" icon={Hash} title="Identification" description="Item type, reference ID, title and parent link.">
+          <div className="form-grid analyzer__identity">
+            <Field label={COL_LABELS.source_type}>
+              <Select id="source_type" value={req.source_type} onChange={e => set("source_type", e.target.value)}>
+                {SOURCE_TYPES.map(s => <option key={s}>{s}</option>)}
+              </Select>
+            </Field>
+            {field({ id: "requirement_id", placeholder: "e.g. US-101" })}
+            {field({ id: "title", placeholder: "e.g. Edit the delivery completion date" })}
+            {field({ id: "parent", placeholder: "Parent epic, feature or story" })}
+          </div>
+        </FormSection>
+
+        <FormSection id="analyzer-description" icon={FileText} title="Description" description="The story, requirement or change request as written.">
+          {field({ id: "description", rows: 6, placeholder: "Paste the full item description, e.g. As a user, I want … so that …" })}
+        </FormSection>
+
+        <FormSection id="analyzer-specification" icon={ListChecks} title="Specification" description="Criteria, validations, integrations and API details. Optional, but each one improves coverage.">
+          <div className="form-grid form-grid--2">
+            {field({ id: "data_flow_diagram", rows: 3, span: true, mono: true, placeholder: "Data flow elements as JSON or text" })}
+            {field({ id: "acceptance_criteria", rows: 4, placeholder: "One criterion per line, e.g. Given … when … then …" })}
+            {field({ id: "business_validation", rows: 4, placeholder: "Rules and validations the system must enforce" })}
+            {field({ id: "boundary_validation", rows: 4, placeholder: "Limits, ranges and edge values" })}
+            {field({ id: "integration_points", rows: 4, placeholder: "Upstream and downstream systems, events or files" })}
+            {field({ id: "api_spec", rows: 3, span: true, mono: true, placeholder: "Endpoints, payloads or an OpenAPI excerpt" })}
+          </div>
+        </FormSection>
+
+        {error && <CardSection><Alert tone="danger" role="alert">{error}</Alert></CardSection>}
+
+        <CardFooter className={cx("analyzer__footer", loading && "analyzer__footer--busy")}>
+          <p>
+            <span className="tabular">{plural(req.description.length, "character")}</span> in description ·{" "}
+            <span id="analyzer-upload-hint">Excel (.xlsx) template up to 5 MB</span>
+          </p>
+          <div className="btn-group analyzer__actions">
+            <input ref={tmplRef} type="file" accept=".xlsx" hidden onChange={uploadTemplate} data-testid="template-input" />
+            <Button variant="ghost" icon={Upload} aria-describedby="analyzer-upload-hint" onClick={() => tmplRef.current.click()}>Upload Excel</Button>
+            <Button icon={Sparkles} disabled={!!loading} onClick={analyze}>Analyze Requirement</Button>
+            <Button variant="primary" iconRight={ArrowRight} disabled={!!loading} onClick={generate}>Generate AI Test Pack</Button>
+          </div>
+        </CardFooter>
+
+        {loading && <div className="analyzer__status"><Spinner label={loading} /></div>}
+      </Card>
+
+      {loading === ANALYZING && !analysis && <AnalysisSkeleton />}
+      {analysis && <AnalysisView a={analysis} />}
+      {showGrid && <TemplateGrid rows={templateRows} onApprove={approveTemplate} onClose={() => setShowGrid(false)} />}
+    </div>
+  );
 }
 
-const List = ({ title, items }) => items?.length ? <div className="an-block"><h4>{title}</h4><ul>{items.map((x, i) => <li key={i}>{x}</li>)}</ul></div> : null;
+/** One titled list in the analysis grid; hidden when the list is empty. */
+function Block({ icon: Icon, title, items, render = x => x, refs = false, attention = false }) {
+  if (!items?.length) return null;
+  return (
+    <div className={cx("analyzer__block", attention && "analyzer__block--attention")}>
+      <h3 className="analyzer__block-title">
+        <Icon size={15} aria-hidden="true" />
+        <span className="grow">{title}</span>
+        <span className="chip__count" aria-hidden="true">{items.length}</span>
+      </h3>
+      <ul className="analyzer__list">
+        {items.map((item, i) => <li key={i} className={cx("analyzer__item", !refs && "analyzer__item--dot")}>{render(item)}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+const refItem = item => <><span className="analyzer__ref">{item.id}</span><span>{item.text}</span></>;
+
+const ruleItem = rule => (
+  <>
+    <span className="analyzer__ref">{rule.id}</span>
+    <span>
+      {rule.text}
+      {rule.basis && <>{" "}<Badge tag tone={rule.basis === "inferred" ? "warning" : "neutral"}>{rule.basis}</Badge></>}
+    </span>
+  </>
+);
+
+const ambiguityItem = x => (
+  <span className="stack-xs">
+    <span className="analyzer__strong">“{x.statement}”</span>
+    <span className="muted text-xs">{x.issue}</span>
+  </span>
+);
+
+const questionItem = q => (
+  <span className="stack-xs">
+    <span className="analyzer__strong">{q.question}</span>
+    <span className="muted text-xs">Why: {q.why_needed}</span>
+    {q.provisional_assumption && <span className="analyzer__assumption">Provisional assumption: {q.provisional_assumption}</span>}
+  </span>
+);
+
+const TRACEABLE = ["functional_requirements", "acceptance_criteria", "business_rules", "regression_impacts"];
 
 export function AnalysisView({ a }) {
-  return <section className="panel analysis-panel" aria-label="Requirement analysis">
-    <div className="section-kicker">02 / AI REQUIREMENT ANALYSIS</div><h2>{a.summary}</h2>
-    <p className="muted">{a.business_objective}</p>
-    <div className="an-grid">
-      <List title="Actors" items={a.actors} /><List title="Entities" items={a.entities} /><List title="Workflows" items={a.workflows} />
-      <List title="Functional requirements" items={a.functional_requirements.map(i => `${i.id}: ${i.text}`)} />
-      <List title="Acceptance criteria" items={a.acceptance_criteria.map(i => `${i.id}: ${i.text}`)} />
-      <List title="Business rules" items={a.business_rules.map(b => `${b.id} [${b.basis}]: ${b.text}`)} />
-      <List title="Mandatory validations" items={a.mandatory_validations} /><List title="Dependencies" items={a.dependencies} />
-      <List title="Integration points" items={a.integration_points} />
-      <List title="Regression impacts" items={a.regression_impacts.map(i => `${i.id}: ${i.text}`)} />
-      <List title="Ambiguous statements" items={a.ambiguities.map(x => `"${x.statement}" — ${x.issue}`)} />
-      <List title="Open questions" items={a.open_questions.map(q => `${q.question} (${q.why_needed})${q.provisional_assumption ? " Assumption: " + q.provisional_assumption : ""}`)} />
-    </div>
-  </section>;
+  const traceable = TRACEABLE.reduce((n, k) => n + (a[k]?.length || 0), 0);
+  const questions = a.open_questions?.length || 0;
+  return (
+    <Card className="analyzer__analysis animate-in" aria-label="Requirement analysis">
+      <CardHeader
+        eyebrow={<><Sparkles size={13} aria-hidden="true" /> AI requirement analysis</>}
+        title={a.summary}
+        description={a.business_objective}
+        actions={
+          <>
+            <Badge>{plural(traceable, "traceable item")}</Badge>
+            <Badge tone={questions ? "warning" : "success"} dot>{plural(questions, "open question")}</Badge>
+          </>
+        }
+      />
+      <div className="analyzer__blocks">
+        <Block icon={Users} title="Actors" items={a.actors} />
+        <Block icon={Boxes} title="Entities" items={a.entities} />
+        <Block icon={Workflow} title="Workflows" items={a.workflows} />
+        <Block icon={ListChecks} title="Functional requirements" items={a.functional_requirements} render={refItem} refs />
+        <Block icon={ClipboardCheck} title="Acceptance criteria" items={a.acceptance_criteria} render={refItem} refs />
+        <Block icon={Scale} title="Business rules" items={a.business_rules} render={ruleItem} refs />
+        <Block icon={ShieldCheck} title="Mandatory validations" items={a.mandatory_validations} />
+        <Block icon={Network} title="Dependencies" items={a.dependencies} />
+        <Block icon={Plug} title="Integration points" items={a.integration_points} />
+        <Block icon={RefreshCw} title="Regression impacts" items={a.regression_impacts} render={refItem} refs />
+        <Block icon={TriangleAlert} title="Ambiguous statements" items={a.ambiguities} render={ambiguityItem} attention />
+        <Block icon={CircleHelp} title="Open questions" items={a.open_questions} render={questionItem} attention />
+      </div>
+    </Card>
+  );
+}
+
+/** Placeholder shown where the analysis will appear while it is being produced. */
+function AnalysisSkeleton() {
+  return (
+    <Card as="div" className="stack-lg" aria-hidden="true">
+      <div className="stack-sm">
+        <Skeleton width={160} height={11} />
+        <Skeleton width="55%" height={20} />
+        <Skeleton width="35%" height={14} />
+      </div>
+      <div className="analyzer__blocks">
+        <Skeleton height={132} />
+        <Skeleton height={132} />
+        <Skeleton height={132} />
+      </div>
+    </Card>
+  );
 }

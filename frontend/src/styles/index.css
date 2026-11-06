@@ -1,0 +1,9 @@
+/*
+ * Global stylesheet entry. Order matters: tokens → themes → base → kit → shell.
+ * Page-specific styles live next to each page (src/pages/*.css).
+ */
+@import "./tokens.css";
+@import "./themes.css";
+@import "./base.css";
+@import "./components.css";
+@import "./layout.css";

@@ -28,13 +28,21 @@ export const api = {
   health: () => data(http.get("/api/health")),
   me: () => data(http.get("/api/me")),
   analyze: req => data(http.post("/api/requirements/analyze", req)),
-  extract: file => {
+  downloadTemplate: async () => {
+    const res = await http.get("/api/requirements/template", { responseType: "blob" });
+    return { blob: res.data, name: "requirement_template.xlsx" };
+  },
+  parseTemplate: file => {
     const fd = new FormData();
     fd.append("file", file);
-    return data(http.post("/api/requirements/extract", fd));
+    return data(http.post("/api/requirements/template/parse", fd));
   },
-  generate: (requirement, analysis) => data(http.post("/api/test-pack/generate", { requirement, analysis })),
-  listPacks: () => data(http.get("/api/test-pack")),
+  generate: (requirement, analysis, projectId) => data(http.post("/api/test-pack/generate", { requirement, analysis, project_id: projectId })),
+  listProjects: () => data(http.get("/api/projects")),
+  createProject: body => data(http.post("/api/projects", body)),
+  updateProject: (id, body) => data(http.put(`/api/projects/${id}`, body)),
+  deleteProject: (id, force = false) => http.delete(`/api/projects/${id}`, { params: force ? { force: true } : {} }),
+  listPacks: projectId => data(http.get("/api/test-pack", { params: projectId ? { project_id: projectId } : {} })),
   getPack: id => data(http.get(`/api/test-pack/${id}`, { params: { page_size: 1000 } })),
   deletePack: id => http.delete(`/api/test-pack/${id}`),
   patchCase: (id, caseId, body) => data(http.patch(`/api/test-pack/${id}/test-cases/${caseId}`, body)),
@@ -47,7 +55,7 @@ export const api = {
   versions: id => data(http.get(`/api/test-pack/${id}/versions`)),
   compare: (id, a, b) => data(http.get(`/api/test-pack/${id}/compare`, { params: { a, b } })),
   audit: id => data(http.get(`/api/test-pack/${id}/audit`)),
-  dashboard: () => data(http.get("/api/dashboard/summary")),
+  dashboard: projectId => data(http.get("/api/dashboard/summary", { params: projectId ? { project_id: projectId } : {} })),
   exportPack: async (id, format) => {
     const res = await http.post(`/api/test-pack/${id}/export`, { format }, { responseType: "blob" });
     const cd = res.headers["content-disposition"] || "";

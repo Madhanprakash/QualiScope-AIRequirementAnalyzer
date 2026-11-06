@@ -55,7 +55,7 @@ def build_cases(
             TestCase(
                 id=tc_id,
                 requirement_id=req.requirement_id,
-                module=g.module or req.impacted_module,
+                module=g.module or req.parent,
                 scenario=g.scenario.strip(),
                 category=cat,
                 test_type=g.test_type or cat.value.title(),

@@ -107,6 +107,7 @@ class PackData(BaseModel):
 
 class PackSummary(BaseModel):
     id: str
+    project_id: str = ""
     requirement_id: str
     title: str
     status: str
@@ -123,6 +124,7 @@ class PackOut(PackSummary):
 
 
 class GenerateRequest(BaseModel):
+    project_id: str = Field(min_length=1, max_length=36)
     requirement: RequirementInput
     analysis: RequirementAnalysis | None = None
     categories: list[Category] | None = None

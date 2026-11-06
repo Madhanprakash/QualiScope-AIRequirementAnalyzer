@@ -18,7 +18,7 @@ from tests.fake_llm import FakeLLM
 REQ = {
     "source_type": "User Story", "requirement_id": "US-101", "title": "Edit delivery date",
     "description": "As an Admin, I want to modify the delivery completion date so records stay accurate.",
-    "acceptance_criteria": "Date persists after save", "impacted_module": "Delivery",
+    "acceptance_criteria": "Date persists after save", "parent": "Delivery",
 }
 
 
@@ -44,7 +44,14 @@ def client():
 
 
 @pytest.fixture
-def pack(client, llm):
-    r = client.post("/api/test-pack/generate", json={"requirement": REQ})
+def project(client):
+    r = client.post("/api/projects", json={"name": "iGreen", "code": "IG"})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+@pytest.fixture
+def pack(client, llm, project):
+    r = client.post("/api/test-pack/generate", json={"requirement": REQ, "project_id": project["id"]})
     assert r.status_code == 201, r.text
     return r.json()

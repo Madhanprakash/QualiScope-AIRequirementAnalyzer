@@ -1,0 +1,144 @@
+/* Test execution page */
+
+/* ----- Progress summary ----- */
+.execution__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.execution__headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.execution__count,
+.execution__pct {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.execution__count strong,
+.execution__pct strong {
+  margin-right: var(--space-1);
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tighter);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.execution__count strong {
+  font-size: var(--text-3xl);
+}
+
+.execution__pct strong {
+  font-size: var(--text-xl);
+}
+
+.progress.execution__bar {
+  height: 10px;
+}
+
+.execution__seg--pass { background: var(--success); }
+.execution__seg--fail { background: var(--danger); }
+.execution__seg--blocked { background: var(--warning); }
+.execution__seg--not-run { background: var(--border); }
+
+/* Per-status counts, in the same order as the bar segments. */
+.execution__breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4) 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.execution__breakdown > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.execution__breakdown > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.execution__breakdown-count {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Results table ----- */
+.card__section.execution__toolbar {
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.execution__status-cell {
+  min-width: 148px;
+}
+
+.execution__field {
+  min-width: 192px;
+}
+
+.execution__field--remarks {
+  min-width: 152px;
+}
+
+/* The status select repeats its value as a coloured dot. */
+.execution__status {
+  --execution-dot: var(--text-disabled);
+}
+
+.execution__status--pass { --execution-dot: var(--success); }
+.execution__status--fail { --execution-dot: var(--danger); }
+.execution__status--blocked { --execution-dot: var(--warning); }
+
+.execution__status::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--execution-dot);
+  transform: translateY(-50%);
+  transition: background-color var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.execution__status > .select {
+  padding-left: var(--space-7);
+}
+
+@media (max-width: 639px) {
+  .execution__count strong {
+    font-size: var(--text-2xl);
+  }
+
+  .execution__breakdown {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .execution__breakdown > div:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
+}

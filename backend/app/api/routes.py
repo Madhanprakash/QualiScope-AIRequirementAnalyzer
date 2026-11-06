@@ -1,20 +1,22 @@
 import logging
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.sanitize import clean_text
 from app.core.security import User, get_current_user, require_role
 from app.database.session import get_db
-from app.models.models import AuditLogRow, PackRow, PackVersionRow
+from app.models.models import AuditLogRow, PackRow, PackVersionRow, ProjectRow
+from app.schemas.project import ProjectIn, ProjectOut
 from app.schemas.requirement import RequirementAnalysis, RequirementInput
 from app.schemas.testpack import (
     ApproveRequest, ExportRequest, GenerateRequest, ManualCaseIn, PackData, PackOut, PackSummary, RegenerateRequest, TestCasePatch,
 )
-from app.services import export_service, pack_service, requirement_analyzer
+from app.services import export_service, pack_service, requirement_analyzer, template_service
 from app.services.ai_service import AIUnavailable, get_llm
 from app.services.document_parser import extract_text
 from app.services.traceability import build_traceability
@@ -52,6 +54,66 @@ def me(user: User = viewer):
     return {"name": user.name, "role": user.role}
 
 
+# ---- Projects ----
+def _project_out(db: Session, p: ProjectRow) -> ProjectOut:
+    n = db.scalar(select(func.count()).select_from(PackRow).where(PackRow.project_id == p.id)) or 0
+    return ProjectOut(id=p.id, name=p.name, code=p.code, description=p.description, pack_count=n,
+                      created_at=p.created_at.isoformat(), updated_at=p.updated_at.isoformat())
+
+
+def _get_project(db: Session, project_id: str) -> ProjectRow:
+    p = db.get(ProjectRow, project_id)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    return p
+
+
+def _ensure_unique_name(db: Session, name: str, ignore_id: str = "") -> None:
+    clash = db.execute(select(ProjectRow).where(func.lower(ProjectRow.name) == name.lower())).scalars().first()
+    if clash and clash.id != ignore_id:
+        raise HTTPException(409, f"A project named '{name}' already exists.")
+
+
+@router.get("/projects", response_model=list[ProjectOut])
+def list_projects(db: Session = Depends(get_db), _: User = viewer):
+    rows = db.execute(select(ProjectRow).order_by(ProjectRow.name)).scalars().all()
+    return [_project_out(db, p) for p in rows]
+
+
+@router.post("/projects", response_model=ProjectOut, status_code=201)
+def create_project(body: ProjectIn, db: Session = Depends(get_db), _: User = editor):
+    _ensure_unique_name(db, body.name)
+    p = ProjectRow(id=str(uuid.uuid4()), name=body.name, code=body.code, description=body.description)
+    db.add(p)
+    db.commit()
+    return _project_out(db, p)
+
+
+@router.put("/projects/{project_id}", response_model=ProjectOut)
+def update_project(project_id: str, body: ProjectIn, db: Session = Depends(get_db), _: User = editor):
+    p = _get_project(db, project_id)
+    _ensure_unique_name(db, body.name, p.id)
+    p.name, p.code, p.description = body.name, body.code, body.description
+    db.commit()
+    return _project_out(db, p)
+
+
+@router.delete("/projects/{project_id}", status_code=204)
+def delete_project(project_id: str, force: bool = Query(False), db: Session = Depends(get_db), user: User = admin):
+    p = _get_project(db, project_id)
+    packs = db.execute(select(PackRow).where(PackRow.project_id == p.id)).scalars().all()
+    if packs and not force:
+        raise HTTPException(409, f"Project has {len(packs)} test pack(s). Delete them first or confirm deleting the project with its packs.")
+    for row in packs:
+        pack_service.audit(db, row.id, user.name, "delete_pack", f"{row.title} (project '{p.name}' deleted)")
+        for v in db.execute(select(PackVersionRow).where(PackVersionRow.pack_id == row.id)).scalars():
+            db.delete(v)
+        db.delete(row)
+    db.delete(p)
+    db.commit()
+    return Response(status_code=204)
+
+
 # ---- Requirements ----
 @router.post("/requirements/analyze", response_model=RequirementAnalysis)
 def analyze(req: RequirementInput, _: User = editor):
@@ -66,16 +128,34 @@ async def extract(file: UploadFile = File(...), _: User = editor, settings: Sett
     return {"filename": file.filename, "text": clean_text(text, 20000)}
 
 
+@router.get("/requirements/template")
+def download_template(_: User = viewer):
+    return Response(template_service.build_template(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="requirement_template.xlsx"'})
+
+
+@router.post("/requirements/template/parse")
+async def parse_template(file: UploadFile = File(...), _: User = editor, settings: Settings = Depends(get_settings)):
+    limit = settings.max_upload_mb * 1024 * 1024
+    content = await file.read(limit + 1)
+    return {"filename": file.filename, "rows": template_service.parse_template(file.filename or "", content, limit)}
+
+
 # ---- Test packs ----
 @router.post("/test-pack/generate", response_model=PackOut, status_code=201)
 def generate(body: GenerateRequest, db: Session = Depends(get_db), user: User = editor):
-    row = ai_call(pack_service.generate_pack, db, llm_or_503(), body.requirement, body.analysis, body.categories, user.name)
+    _get_project(db, body.project_id)
+    row = ai_call(pack_service.generate_pack, db, llm_or_503(), body.requirement, body.analysis, body.categories, user.name, body.project_id)
     return pack_service.out_of(row)
 
 
 @router.get("/test-pack", response_model=list[PackSummary])
-def list_packs(db: Session = Depends(get_db), _: User = viewer, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
-    rows = db.execute(select(PackRow).order_by(PackRow.updated_at.desc()).limit(limit).offset(offset)).scalars().all()
+def list_packs(db: Session = Depends(get_db), _: User = viewer, project_id: str | None = Query(None), limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    q = select(PackRow)
+    if project_id:
+        q = q.where(PackRow.project_id == project_id)
+    rows = db.execute(q.order_by(PackRow.updated_at.desc()).limit(limit).offset(offset)).scalars().all()
     return [pack_service.summary_of(r) for r in rows]
 
 
@@ -170,5 +250,5 @@ def export(pack_id: str, body: ExportRequest, db: Session = Depends(get_db), use
 
 
 @router.get("/dashboard/summary")
-def dashboard_summary(db: Session = Depends(get_db), _: User = viewer):
-    return pack_service.dashboard(db)
+def dashboard_summary(db: Session = Depends(get_db), _: User = viewer, project_id: str | None = Query(None)):
+    return pack_service.dashboard(db, project_id)

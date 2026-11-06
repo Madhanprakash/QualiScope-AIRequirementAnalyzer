@@ -12,11 +12,13 @@ def requirement_block(req: RequirementInput) -> str:
         "requirement_id": req.requirement_id,
         "title": req.title,
         "description": req.description,
-        "business_objective": req.business_objective,
+        "parent": req.parent,
+        "data_flow_diagram": req.data_flow_diagram,
         "acceptance_criteria": req.acceptance_criteria,
-        "impacted_module": req.impacted_module,
-        "business_priority": req.business_priority,
-        "additional_context": req.additional_context,
+        "business_validation": req.business_validation,
+        "boundary_validation": req.boundary_validation,
+        "integration_points": req.integration_points,
+        "api_spec": req.api_spec,
     }
     body = "\n".join(f"{k}: {clean_text(v) or '(not provided)'}" for k, v in fields.items())
     return f"<source>\n{body}\n</source>"

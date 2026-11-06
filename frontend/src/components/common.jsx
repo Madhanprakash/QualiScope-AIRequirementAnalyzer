@@ -1,35 +1,92 @@
+/*
+ * QA-domain components built on the UI kit (src/components/ui).
+ */
 import React from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { FileSearch, Sparkles } from "lucide-react";
+import { useApp } from "../hooks/useApp";
+import { Alert, Badge, Button, Card, EmptyState, PageHeader, Skeleton, Spinner, StatCard, cx } from "./ui";
 
-export function Stat({ icon: Icon, label, value, note, tone = "blue" }) {
-  return <div className="stat-card"><div className={`stat-icon ${tone}`}><Icon size={17} /></div><div className="stat-label">{label}</div><div className="stat-value">{value}</div>{note && <div className="stat-note">{note}</div>}</div>;
+const PRIORITY_CLASS = { critical: "priority--critical", high: "priority--high", medium: "priority--medium", low: "priority--low" };
+
+/** Priority / severity label with a coloured dot (Critical, High, Medium, Low). */
+export function PriorityBadge({ value }) {
+  return (
+    <span className={cx("priority", PRIORITY_CLASS[String(value || "").toLowerCase()])}>
+      <span className="priority__dot" aria-hidden="true" />
+      {value}
+    </span>
+  );
 }
 
-export function Priority({ value }) {
-  return <span className={`priority ${String(value).toLowerCase()}`}><i />{value}</span>;
+const STATUS_TONE = {
+  pass: "success", validated: "success", approved: "success",
+  fail: "danger", failing: "danger", "not covered": "danger",
+  blocked: "warning", "partially covered": "warning",
+  mapped: "info",
+  draft: "neutral", "not run": "neutral"
+};
+
+/** Execution / coverage / approval status as a toned badge. */
+export function StatusBadge({ value, dot = true }) {
+  const text = String(value ?? "");
+  const tone = STATUS_TONE[text.toLowerCase()] || "neutral";
+  return <Badge tone={tone} dot={dot}>{text.charAt(0).toUpperCase() + text.slice(1)}</Badge>;
 }
 
-export function StatusTag({ value }) {
-  return <span className={`status-tag s-${String(value).toLowerCase().replace(/\s/g, "")}`}>{value}</span>;
+/** Shown by pack-dependent pages when no test pack is open (or a placeholder while one is restoring). */
+export function NoPack({ go }) {
+  const { packLoading } = useApp() || {};
+  if (packLoading) {
+    return (
+      <div className="page" aria-busy="true">
+        <span className="sr-only" role="status">Loading test pack…</span>
+        <div className="stack-sm">
+          <Skeleton width={120} height={12} />
+          <Skeleton width="38%" height={30} />
+          <Skeleton width="62%" height={14} />
+        </div>
+        <Card><div className="stack"><Skeleton height={18} width="30%" /><Skeleton height={44} /><Skeleton height={44} /><Skeleton height={44} /></div></Card>
+      </div>
+    );
+  }
+  return (
+    <div className="page">
+      <Card>
+        <EmptyState
+          icon={FileSearch}
+          titleAs="h1"
+          title="No test pack selected"
+          description="Analyze a requirement and generate a test pack, or open a saved pack from the Dashboard."
+          action={<Button variant="primary" icon={Sparkles} onClick={() => go("analyzer")}>Go to Requirement Analyzer</Button>}
+        />
+      </Card>
+    </div>
+  );
 }
 
-export function Spinner({ label = "Working..." }) {
-  return <span className="spinner" role="status"><Loader2 size={14} className="spin" /> {label}</span>;
+/* ------------------------------------------------------------------
+ * Compatibility aliases for the pre-redesign API. Prefer the components
+ * above and the UI kit in new code.
+ * ------------------------------------------------------------------ */
+const STAT_TONE = { blue: "accent", green: "success", red: "danger", amber: "warning" };
+
+export const Priority = PriorityBadge;
+export const StatusTag = StatusBadge;
+export { Spinner };
+
+export function Stat({ icon, label, value, note, tone = "blue" }) {
+  return <StatCard icon={icon} label={label} value={value} hint={note} tone={STAT_TONE[tone] || tone} />;
 }
 
 export function ErrorBanner({ message }) {
   if (!message) return null;
-  return <div className="error-banner" role="alert"><AlertTriangle size={15} /> {message}</div>;
+  return <Alert tone="danger" role="alert">{message}</Alert>;
 }
 
 export function Empty({ children }) {
-  return <div className="empty-state">{children}</div>;
+  return <EmptyState compact description={children} />;
 }
 
-export function NoPack({ go }) {
-  return <div className="panel empty-panel"><h3>No test pack selected</h3><p>Analyze a requirement and generate a test pack, or open a saved pack from the Dashboard.</p><button className="primary-button" onClick={() => go("analyzer")}>Go to Requirement Analyzer</button></div>;
-}
-
-export function PageHeading({ kicker, title, accent, children, subtitle }) {
-  return <section className="page-heading"><div><div className="eyebrow">{kicker}</div><h1>{title} <span>{accent}</span></h1><p>{subtitle}</p></div>{children}</section>;
+export function PageHeading({ kicker, title, accent, subtitle, children }) {
+  return <PageHeader eyebrow={kicker} title={title} accent={accent} description={subtitle} actions={children} />;
 }

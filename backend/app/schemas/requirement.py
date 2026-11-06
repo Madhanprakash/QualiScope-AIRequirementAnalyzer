@@ -4,6 +4,10 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class SourceType(str, Enum):
+    epic = "Epic"
+    feature = "Feature"
+    story = "Story"
+    task = "Task"
     requirement = "Requirement"
     user_story = "User Story"
     change_request = "Change Request"
@@ -12,15 +16,20 @@ class SourceType(str, Enum):
 
 
 class RequirementInput(BaseModel):
-    source_type: SourceType = SourceType.requirement
+    # Fields mirror the iGreen backlog columns: Item Type, Item Title, Item Desc, Parent,
+    # Data Flow Diagram, Acceptance Criteria, Business Validation, Boundary Validation,
+    # Integration Points, API Spec.
+    source_type: SourceType = SourceType.story
     requirement_id: str = Field(default="", max_length=100)
     title: str = Field(default="", max_length=300)
     description: str = Field(default="", max_length=20000)
-    business_objective: str = Field(default="", max_length=5000)
+    parent: str = Field(default="", max_length=300)
+    data_flow_diagram: str = Field(default="", max_length=20000)
     acceptance_criteria: str = Field(default="", max_length=10000)
-    impacted_module: str = Field(default="", max_length=300)
-    business_priority: str = Field(default="", max_length=50)
-    additional_context: str = Field(default="", max_length=10000)
+    business_validation: str = Field(default="", max_length=10000)
+    boundary_validation: str = Field(default="", max_length=10000)
+    integration_points: str = Field(default="", max_length=10000)
+    api_spec: str = Field(default="", max_length=20000)
 
     @model_validator(mode="after")
     def _has_content(self):
